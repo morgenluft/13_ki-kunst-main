@@ -4,8 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scribble AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;800&display=swap" rel="stylesheet">
     <style>
-        :root { --black: #000; --white: #fff; --muted: #666; --line: #ddd; }
+        :root {
+            --black: #000;
+            --white: #fff;
+            --muted: #4a4a4a;
+            --line: #111;
+            --space-1: clamp(8px, 1.2vw, 12px);
+            --space-2: clamp(12px, 1.8vw, 18px);
+            --space-3: clamp(16px, 2.5vw, 28px);
+            --space-4: clamp(24px, 4vw, 40px);
+            --max-ui-width: min(92vw, 560px);
+        }
         * { box-sizing: border-box; }
         body {
             margin: 0;
@@ -15,28 +28,34 @@
             align-items: center;
             background: var(--white);
             color: var(--black);
-            font-family: Arial, sans-serif;
-            padding: 20px;
+            font-family: "Roboto", "Segoe UI", Arial, sans-serif;
+            padding: var(--space-3);
         }
         .card {
             width: 100%;
-            max-width: 560px;
+            max-width: 640px;
             text-align: center;
+            padding: var(--space-4) var(--space-2);
+            border: 1px solid var(--black);
         }
         h1 {
             margin: 0;
-            font-size: 2rem;
-            font-weight: 700;
+            font-size: clamp(2.2rem, 7vw, 3.2rem);
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            line-height: 1;
         }
         .subtitle {
-            margin: 10px 0 20px 0;
+            margin: var(--space-2) 0 var(--space-3) 0;
             color: var(--muted);
-            font-size: 0.95rem;
+            font-size: clamp(1rem, 3vw, 1.15rem);
+            line-height: 1.4;
+            letter-spacing: 0.01em;
         }
         .canvas-container {
             position: relative;
-            width: min(90vw, 480px);
-            margin: 0 auto 18px auto;
+            width: min(100%, 500px);
+            margin: 0 auto var(--space-2) auto;
             aspect-ratio: 1 / 1;
             border: 2px solid var(--black);
             background: var(--white);
@@ -63,54 +82,72 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.94);
             color: var(--black);
-            gap: 12px;
+            gap: var(--space-1);
             pointer-events: all;
+            padding: var(--space-2);
         }
-        .loader {
-            width: 36px;
-            height: 36px;
-            border: 3px solid #bbb;
-            border-top: 3px solid var(--black);
-            border-radius: 50%;
-            animation: spin 0.9s linear infinite;
+        .loader-seven-svg {
+            width: clamp(76px, 20vw, 110px);
+            height: clamp(76px, 20vw, 110px);
+            display: block;
         }
         .overlay-text {
-            font-size: 0.9rem;
+            font-size: clamp(0.95rem, 2.8vw, 1.08rem);
             color: var(--muted);
+            letter-spacing: 0.01em;
         }
         .artist-buttons {
-            width: min(90vw, 480px);
+            width: min(100%, 500px);
             margin: 0 auto;
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 8px;
+            gap: var(--space-1);
         }
         .artist-btn, #resetBtn {
-            padding: 12px 10px;
-            border: 1px solid var(--black);
+            min-height: clamp(42px, 7vw, 52px);
+            padding: 10px 8px;
+            border: 2px solid var(--black);
             background: var(--black);
             color: var(--white);
-            font-size: 0.95rem;
+            font-size: clamp(0.95rem, 2.8vw, 1.08rem);
+            font-weight: 600;
+            letter-spacing: 0.01em;
             cursor: pointer;
+            transition: background 120ms ease, color 120ms ease;
+        }
+        .artist-btn:hover, #resetBtn:hover {
+            background: var(--white);
+            color: var(--black);
         }
         .artist-btn:disabled, #resetBtn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
         }
         #resetBtn {
-            width: min(90vw, 480px);
-            margin-top: 8px;
+            width: min(100%, 500px);
+            margin-top: var(--space-1);
             display: none;
         }
         #statusMsg {
-            margin-top: 12px;
-            min-height: 1.2em;
+            margin-top: var(--space-2);
+            min-height: 1.3em;
             color: #b00020;
-            font-size: 0.9rem;
+            font-size: clamp(0.95rem, 2.6vw, 1.05rem);
+            line-height: 1.35;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 520px) {
+            .card {
+                border-left: none;
+                border-right: none;
+                padding-left: 0;
+                padding-right: 0;
+            }
+            .artist-buttons {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -121,7 +158,42 @@
             <canvas id="sketchPad"></canvas>
             <img id="outputImage" alt="Generiertes Kunstwerk">
             <div id="overlay" class="overlay">
-                <div class="loader"></div>
+                <svg class="loader-seven-svg" version="1.1" id="L7" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px"
+                    viewBox="0 0 100 100" xml:space="preserve" aria-hidden="true">
+                    <path fill="#000" d="M31.6,3.5C5.9,13.6-6.6,42.7,3.5,68.4c10.1,25.7,39.2,38.3,64.9,28.1l-3.1-7.9c-21.3,8.4-45.4-2-53.8-23.3
+                        c-8.4-21.3,2-45.4,23.3-53.8L31.6,3.5z">
+                        <animateTransform
+                            attributeName="transform"
+                            attributeType="XML"
+                            type="rotate"
+                            dur="2s"
+                            from="0 50 50"
+                            to="360 50 50"
+                            repeatCount="indefinite" />
+                    </path>
+                    <path fill="#000" d="M42.3,39.6c5.7-4.3,13.9-3.1,18.1,2.7c4.3,5.7,3.1,13.9-2.7,18.1l4.1,5.5c8.8-6.5,10.6-19,4.1-27.7
+                        c-6.5-8.8-19-10.6-27.7-4.1L42.3,39.6z">
+                        <animateTransform
+                            attributeName="transform"
+                            attributeType="XML"
+                            type="rotate"
+                            dur="1s"
+                            from="0 50 50"
+                            to="-360 50 50"
+                            repeatCount="indefinite" />
+                    </path>
+                    <path fill="#000" d="M82,35.7C74.1,18,53.4,10.1,35.7,18S10.1,46.6,18,64.3l7.6-3.4c-6-13.5,0-29.3,13.5-35.3s29.3,0,35.3,13.5
+                        L82,35.7z">
+                        <animateTransform
+                            attributeName="transform"
+                            attributeType="XML"
+                            type="rotate"
+                            dur="2s"
+                            from="0 50 50"
+                            to="360 50 50"
+                            repeatCount="indefinite" />
+                    </path>
+                </svg>
                 <div class="overlay-text">Kunstwerk wird generiert</div>
             </div>
         </div>
