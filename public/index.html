@@ -52,6 +52,42 @@
             line-height: 1.4;
             letter-spacing: 0.01em;
         }
+        .status-banner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(86%, 360px);
+            min-height: 120px;
+            padding: 14px 16px;
+            border: 1px solid var(--black);
+            background: rgba(255, 255, 255, 0.86);
+            color: var(--black);
+            font-size: clamp(0.9rem, 2.4vw, 1rem);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 10px;
+            line-height: 1.35;
+            text-align: center;
+            z-index: 6;
+        }
+        .status-banner-icon {
+            width: 34px;
+            height: 34px;
+            border: 2px solid currentColor;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .status-banner-text {
+            text-align: center;
+        }
         .canvas-container {
             position: relative;
             width: min(100%, 500px);
@@ -87,6 +123,7 @@
             gap: var(--space-1);
             pointer-events: all;
             padding: var(--space-2);
+            z-index: 3;
         }
         .loader-seven-svg {
             width: clamp(76px, 20vw, 110px);
@@ -104,6 +141,56 @@
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: var(--space-1);
+        }
+        .result-tabs {
+            width: min(100%, 500px);
+            margin: 0 auto 0 auto;
+            display: none;
+            border: 2px solid var(--black);
+            border-bottom: none;
+            background: var(--black);
+            overflow: hidden;
+        }
+        .result-tab {
+            flex: 1 1 0;
+            min-height: clamp(38px, 6.4vw, 48px);
+            padding: 8px 6px;
+            border: none;
+            border-right: 2px solid var(--black);
+            background: var(--white);
+            color: var(--black);
+            font-size: clamp(0.86rem, 2.4vw, 1rem);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        .result-tab:last-child {
+            border-right: none;
+        }
+        .result-tab.active {
+            background: var(--black);
+            color: var(--white);
+        }
+        .result-tab:disabled {
+            cursor: not-allowed;
+            opacity: 0.75;
+        }
+        .tab-loader {
+            width: 12px;
+            height: 12px;
+            border: 2px solid currentColor;
+            border-right-color: transparent;
+            border-radius: 50%;
+            animation: tabSpin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+        .tab-state {
+            font-size: 0.95em;
+            line-height: 1;
+            flex-shrink: 0;
         }
         .artist-btn, #resetBtn {
             min-height: clamp(42px, 7vw, 52px);
@@ -136,6 +223,7 @@
             color: #b00020;
             font-size: clamp(0.95rem, 2.6vw, 1.05rem);
             line-height: 1.35;
+            display: none;
         }
         @media (max-width: 520px) {
             .card {
@@ -147,16 +235,26 @@
             .artist-buttons {
                 grid-template-columns: 1fr;
             }
+            .result-tab {
+                font-size: 0.95rem;
+                min-height: 44px;
+            }
         }
+        @keyframes tabSpin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
     <div class="card">
         <h1>Scribble AI</h1>
         <p class="subtitle">Verwandeln sie ihre Skizze in ein Kunstwerk</p>
+        <div id="resultTabs" class="result-tabs"></div>
         <div class="canvas-container">
             <canvas id="sketchPad"></canvas>
             <img id="outputImage" alt="Generiertes Kunstwerk">
+            <div id="statusBanner" class="status-banner" role="status" aria-live="polite">
+                <span class="status-banner-icon">!</span>
+                <span id="statusBannerText" class="status-banner-text"></span>
+            </div>
             <div id="overlay" class="overlay">
                 <svg class="loader-seven-svg" version="1.1" id="L7" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px"
                     viewBox="0 0 100 100" xml:space="preserve" aria-hidden="true">
@@ -209,13 +307,21 @@
         const overlay = document.getElementById('overlay');
         const outputImage = document.getElementById('outputImage');
         const artistButtons = document.getElementById('artistButtons');
+        const resultTabs = document.getElementById('resultTabs');
         const resetBtn = document.getElementById('resetBtn');
+        const statusBanner = document.getElementById('statusBanner');
+        const statusBannerText = document.getElementById('statusBannerText');
         const statusMsg = document.getElementById('statusMsg');
 
         let drawing = false;
         let isGenerating = false;
         let isCompleted = false;
+        let hasSketch = false;
         let activePointerId = null;
+        let artistsList = [];
+        let selectedArtist = null;
+        let artistResults = {};
+        let firstGeminiErrorShown = false;
 
         function resizeCanvas() {
             const size = container.clientWidth;
@@ -255,6 +361,10 @@
             const pos = getPointerPosition(event);
             ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
+            if (!hasSketch) {
+                hasSketch = true;
+                setArtistButtonsDisabled(false);
+            }
         }
 
         function stopDrawing(event) {
@@ -287,6 +397,120 @@
             });
         }
 
+        function renderTabs() {
+            if (!artistsList.length) return;
+            resultTabs.innerHTML = '';
+
+            artistsList.forEach((artist) => {
+                const result = artistResults[artist.name] || { status: 'pending' };
+                const tab = document.createElement('button');
+                tab.type = 'button';
+                tab.className = `result-tab${selectedArtist === artist.name ? ' active' : ''}`;
+                tab.disabled = result.status === 'pending';
+                tab.addEventListener('click', () => {
+                    if (result.status !== 'success') return;
+                    selectedArtist = artist.name;
+                    renderSelectedImage();
+                    renderTabs();
+                });
+
+                const label = document.createElement('span');
+                label.textContent = artist.name;
+                tab.appendChild(label);
+
+                if (result.status === 'pending') {
+                    const loader = document.createElement('span');
+                    loader.className = 'tab-loader';
+                    loader.setAttribute('aria-hidden', 'true');
+                    tab.appendChild(loader);
+                } else if (result.status === 'error') {
+                    const fail = document.createElement('span');
+                    fail.className = 'tab-state';
+                    fail.textContent = '!';
+                    tab.appendChild(fail);
+                }
+
+                resultTabs.appendChild(tab);
+            });
+        }
+
+        function renderSelectedImage() {
+            const selected = artistResults[selectedArtist];
+            if (!selected || selected.status !== 'success') return;
+            outputImage.src = `data:image/png;base64,${selected.imageBase64}`;
+            outputImage.style.display = 'block';
+            canvas.style.display = 'none';
+            overlay.style.display = 'none';
+            resultTabs.style.display = 'flex';
+            resetBtn.style.display = 'block';
+        }
+
+        function mapUiErrorMessage(rawMessage) {
+            const directMessage = String(rawMessage || '').trim();
+            if (
+                directMessage === 'Skizze entspricht nicht den Sicherheitsreichtlinien' ||
+                directMessage === 'Skizze verletzt das Urheberrecht' ||
+                directMessage === 'Maximale Generierungen erreicht, bitte kontaktieren sie uns' ||
+                directMessage === 'Keine Bildgenerierung möglich'
+            ) {
+                return directMessage;
+            }
+
+            const message = String(rawMessage || '').toUpperCase();
+            if (message.includes('UNPROCESSABLE_ENTITY') || message.includes('HTTP 422')) {
+                return 'Skizze entspricht nicht den Sicherheitsreichtlinien';
+            }
+            if (message.includes('RECITATION')) {
+                return 'Skizze verletzt das Urheberrecht';
+            }
+            if (message.includes('MAX_TOKENS')) {
+                return 'Maximale Generierungen erreicht, bitte kontaktieren sie uns';
+            }
+            if (message.includes('SAFETY') || message.includes('BLOCKED')) {
+                return 'Skizze entspricht nicht den Sicherheitsreichtlinien';
+            }
+            return 'Keine Bildgenerierung möglich';
+        }
+
+        function showStatusBanner(message) {
+            statusBannerText.textContent = message;
+            statusBanner.style.display = 'flex';
+        }
+
+        function hideStatusBanner() {
+            statusBanner.style.display = 'none';
+            statusBannerText.textContent = '';
+        }
+
+        function showFirstGeminiError(message) {
+            if (firstGeminiErrorShown) return;
+            firstGeminiErrorShown = true;
+            showStatusBanner(message);
+        }
+
+        async function requestImageForArtist(artistName, sketchBase64, signal) {
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sketch: sketchBase64, artistName }),
+                signal
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                if (response.status === 422) {
+                    throw new Error('Skizze entspricht nicht den Sicherheitsreichtlinien');
+                }
+                const message = data?.error || `HTTP ${response.status}`;
+                const details = data?.details ? ` (${data.details})` : '';
+                throw new Error(`${message}${details}`);
+            }
+            if (!data.imageBase64) {
+                throw new Error('Keine Bilddaten erhalten.');
+            }
+            return data.imageBase64;
+        }
+
         async function loadArtists() {
             try {
                 const response = await fetch('/api/artists');
@@ -298,6 +522,7 @@
                 if (artists.length === 0) {
                     throw new Error('Keine Künstler verfügbar.');
                 }
+                artistsList = artists;
 
                 artistButtons.innerHTML = '';
                 artists.forEach((artist) => {
@@ -305,7 +530,9 @@
                     button.type = 'button';
                     button.className = 'artist-btn';
                     button.textContent = artist.name;
+                    button.disabled = !hasSketch;
                     button.addEventListener('click', () => {
+                        if (!hasSketch) return;
                         generateFromSketch(artist.name);
                     });
                     artistButtons.appendChild(button);
@@ -319,36 +546,80 @@
             if (isGenerating) return;
 
             isGenerating = true;
+            isCompleted = true;
+            selectedArtist = artistName;
+            artistResults = {};
+            firstGeminiErrorShown = false;
             const sketchBase64 = canvas.toDataURL('image/png').split(',')[1];
             statusMsg.textContent = '';
+            hideStatusBanner();
             overlay.style.display = 'flex';
             setArtistButtonsDisabled(true);
+            artistButtons.style.display = 'none';
+            resultTabs.style.display = 'none';
+
+            artistsList.forEach((artist) => {
+                artistResults[artist.name] = { status: 'pending' };
+            });
 
             try {
-                const response = await fetch('/api/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sketch: sketchBase64, artistName })
-                });
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data?.error || `HTTP ${response.status}`);
-                }
-                if (data.error) throw new Error(data.error);
-                if (!data.imageBase64) throw new Error('Keine Bilddaten erhalten.');
+                const generationController = new AbortController();
+                let stopOnFirstError = false;
 
-                outputImage.src = `data:image/png;base64,${data.imageBase64}`;
-                outputImage.style.display = 'block';
-                canvas.style.display = 'none';
-                isCompleted = true;
-                artistButtons.style.display = 'none';
-                resetBtn.style.display = 'block';
+                const generationTasks = artistsList.map(async (artist) => {
+                    try {
+                        const imageBase64 = await requestImageForArtist(artist.name, sketchBase64, generationController.signal);
+                        if (stopOnFirstError) return;
+                        artistResults[artist.name] = { status: 'success', imageBase64 };
+                        if (artist.name === selectedArtist) {
+                            renderSelectedImage();
+                        }
+                    } catch (error) {
+                        if (error?.name === 'AbortError') {
+                            return;
+                        }
+                        if (stopOnFirstError) {
+                            return;
+                        }
+                        stopOnFirstError = true;
+                        generationController.abort();
+                        artistResults[artist.name] = { status: 'error', error: error.message };
+                        const mappedMessage = mapUiErrorMessage(error.message);
+                        showFirstGeminiError(mappedMessage);
+                        statusMsg.textContent = `Fehler: ${mappedMessage}`;
+                        overlay.style.display = 'none';
+                        resultTabs.style.display = 'none';
+                        resetBtn.style.display = 'block';
+                    } finally {
+                        if (!stopOnFirstError) {
+                            renderTabs();
+                        }
+                    }
+                });
+
+                await Promise.allSettled(generationTasks);
+
+                if (stopOnFirstError) {
+                    return;
+                }
+
+                const selectedResult = artistResults[selectedArtist];
+                if (selectedResult?.status === 'success') {
+                    renderSelectedImage();
+                } else {
+                    overlay.style.display = 'none';
+                }
+
+                const hasAnySuccess = Object.values(artistResults).some((entry) => entry.status === 'success');
+                if (!hasAnySuccess) {
+                    throw new Error('Keine Bildgenerierung möglich');
+                }
             } catch (error) {
-                statusMsg.textContent = `Fehler: ${error.message}`;
-                setArtistButtonsDisabled(false);
+                const mappedMessage = mapUiErrorMessage(error.message);
+                showStatusBanner(mappedMessage);
+                statusMsg.textContent = `Fehler: ${mappedMessage}`;
             } finally {
                 isGenerating = false;
-                overlay.style.display = 'none';
             }
         }
 

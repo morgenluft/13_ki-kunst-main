@@ -41,6 +41,39 @@ app.get('/api/artists', async (_req, res) => {
     res.json({ artists: artists.map((artist) => ({ name: artist.name })) });
 });
 
+function buildCandidateDetails(candidates) {
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+        return '';
+    }
+
+    const detailParts = [];
+    const finishReasons = candidates
+        .map((candidate) => candidate?.finishReason)
+        .filter(Boolean);
+
+    if (finishReasons.length > 0) {
+        detailParts.push(`finishReason: ${finishReasons.join(', ')}`);
+    }
+
+    const blockedRatings = [];
+    candidates.forEach((candidate, candidateIdx) => {
+        const ratings = Array.isArray(candidate?.safetyRatings) ? candidate.safetyRatings : [];
+        ratings.forEach((rating) => {
+            if (rating?.blocked || rating?.probability === 'HIGH' || rating?.probability === 'MEDIUM') {
+                blockedRatings.push(
+                    `c${candidateIdx + 1}:${rating.category || 'UNKNOWN'}=${rating.probability || 'n/a'}${rating.blocked ? ' (blocked)' : ''}`
+                );
+            }
+        });
+    });
+
+    if (blockedRatings.length > 0) {
+        detailParts.push(`safety: ${blockedRatings.join('; ')}`);
+    }
+
+    return detailParts.join(' | ');
+}
+
 app.post('/api/generate', async (req, res) => {
     const { sketch, artistName } = req.body;
     const artists = await getArtistsFromFile();
@@ -67,7 +100,17 @@ app.post('/api/generate', async (req, res) => {
         const data = await response.json();
         if (!response.ok) {
             const apiError = data?.error?.message || `Gemini API Fehler (${response.status})`;
-            return res.status(response.status).json({ error: apiError });
+            const apiDetails = Array.isArray(data?.error?.details)
+                ? data.error.details
+                    .map((detail) => {
+                        if (typeof detail === 'string') return detail;
+                        if (detail?.reason) return detail.reason;
+                        if (detail?.message) return detail.message;
+                        return JSON.stringify(detail);
+                    })
+                    .join(' | ')
+                : '';
+            return res.status(response.status).json({ error: apiError, details: apiDetails });
         }
 
         const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
@@ -93,7 +136,8 @@ app.post('/api/generate', async (req, res) => {
         }
 
         const text = textFallback || "Keine Bilddaten erhalten.";
-        return res.status(422).json({ error: text });
+        const details = buildCandidateDetails(candidates);
+        return res.status(422).json({ error: text, details });
 
     } catch (error) {
         console.error("Fehler im Backend:", error);

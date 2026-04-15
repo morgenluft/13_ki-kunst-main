@@ -1,3 +1,3 @@
-Van Gogh|Erstelle ein Bild wie von gogh
-Picasso|Erstelle ein Bild im Stil von Pablo Picasso
-Warhol|Erstelle ein kontrastreiches Pop-Art-Bild mit kräftigen Farbflächen, klaren Konturen und plakativem Siebdruck-Look.
+Van Gogh|Ein Meisterwerk im Post-Impressionismus-Stil von Vincent van Gogh. Nutze die Impasto-Technik mit dicken, sichtbaren Pinselstrichen, die sich in wirbelnden, dynamischen Mustern bewegen. Kräftige Kontraste aus leuchtendem Goldgelb und tiefem Preußischblau. Die Szene soll emotionale Tiefe und eine vibrierende Energie ausstrahlen.
+Picasso|Ein abstraktes kubistisches Gemälde im Stil von Pablo Picasso. Zerlege das Motiv in geometrische Fragmente und überlappende Flächen. Nutze mehrere Perspektiven gleichzeitig, verschobene Proportionen und kühne, schwarze Konturlinien. Eine erdige Farbpalette aus Ocker, Grau und Blau, wie in seiner analytischen Kubismus-Phase.
+Warhol|Klassische Pop-Art im Siebdruck-Stil. Verwende eine repetitive Komposition mit extrem gesättigten, unnatürlichen Neonfarben (wie Cyan, Magenta, Gelb). Erzeuge einen leichten Versatz im Druck (Misregistration), grobe Rasterpunkte und flächige Farbaufträge ohne Verläufe oder Schattierungen. Der Gesamteindruck soll plakativ, kommerziell und ikonisch wirken.
