@@ -325,6 +325,7 @@
         let isGenerating = false;
         let isCompleted = false;
         let hasSketch = false;
+        let hasStartedSketch = false;
         let activePointerId = null;
         let strokeDistance = 0;
         let lastDrawPos = null;
@@ -360,6 +361,7 @@
             activePointerId = event.pointerId;
             canvas.setPointerCapture(activePointerId);
             drawing = true;
+            hasStartedSketch = true;
             const pos = getPointerPosition(event);
             strokeDistance = 0;
             lastDrawPos = pos;
@@ -404,7 +406,9 @@
         canvas.addEventListener('pointercancel', stopDrawing);
 
         window.addEventListener('resize', () => {
-            if (!isCompleted) resizeCanvas();
+            if (!isCompleted && !hasStartedSketch) {
+                resizeCanvas();
+            }
         });
 
         resetBtn.addEventListener('click', () => {
