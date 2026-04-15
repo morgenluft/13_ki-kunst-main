@@ -2,8 +2,8 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scribble AI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Scribble-KI</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -20,6 +20,9 @@
             --max-ui-width: min(92vw, 560px);
         }
         * { box-sizing: border-box; }
+        html, body {
+            touch-action: manipulation;
+        }
         body {
             margin: 0;
             min-height: 100vh;
@@ -211,6 +214,11 @@
         .artist-btn:disabled, #resetBtn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+            pointer-events: none;
+        }
+        .artist-btn:disabled:hover, #resetBtn:disabled:hover {
+            background: var(--black);
+            color: var(--white);
         }
         #resetBtn {
             width: min(100%, 500px);
@@ -245,8 +253,8 @@
 </head>
 <body>
     <div class="card">
-        <h1>Scribble AI</h1>
-        <p class="subtitle">Verwandeln sie ihre Skizze in ein Kunstwerk</p>
+        <h1>Scribble-KI</h1>
+        <p class="subtitle">Verwandeln Sie Ihre Skizze in ein Kunstwerk</p>
         <div id="resultTabs" class="result-tabs"></div>
         <div class="canvas-container">
             <canvas id="sketchPad"></canvas>
@@ -318,6 +326,9 @@
         let isCompleted = false;
         let hasSketch = false;
         let activePointerId = null;
+        let strokeDistance = 0;
+        let lastDrawPos = null;
+        const DRAW_ACTIVATION_DISTANCE = 24;
         let artistsList = [];
         let selectedArtist = null;
         let artistResults = {};
@@ -350,6 +361,8 @@
             canvas.setPointerCapture(activePointerId);
             drawing = true;
             const pos = getPointerPosition(event);
+            strokeDistance = 0;
+            lastDrawPos = pos;
             ctx.beginPath();
             ctx.moveTo(pos.x, pos.y);
         }
@@ -359,12 +372,14 @@
             if (!drawing || isGenerating || isCompleted) return;
             event.preventDefault();
             const pos = getPointerPosition(event);
+            if (lastDrawPos) {
+                const dx = pos.x - lastDrawPos.x;
+                const dy = pos.y - lastDrawPos.y;
+                strokeDistance += Math.sqrt((dx * dx) + (dy * dy));
+            }
+            lastDrawPos = pos;
             ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
-            if (!hasSketch) {
-                hasSketch = true;
-                setArtistButtonsDisabled(false);
-            }
         }
 
         function stopDrawing(event) {
@@ -374,7 +389,13 @@
             if (activePointerId !== null && canvas.hasPointerCapture(activePointerId)) {
                 canvas.releasePointerCapture(activePointerId);
             }
+            if (!hasSketch && strokeDistance >= DRAW_ACTIVATION_DISTANCE) {
+                hasSketch = true;
+                setArtistButtonsDisabled(false);
+            }
             activePointerId = null;
+            strokeDistance = 0;
+            lastDrawPos = null;
         }
 
         canvas.addEventListener('pointerdown', startDrawing);
