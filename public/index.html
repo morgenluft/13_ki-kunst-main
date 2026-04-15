@@ -80,18 +80,29 @@
             font-size: 0.9rem;
             color: var(--muted);
         }
-        #genBtn {
+        .artist-buttons {
             width: min(90vw, 480px);
-            padding: 12px 16px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .artist-btn, #resetBtn {
+            padding: 12px 10px;
             border: 1px solid var(--black);
             background: var(--black);
             color: var(--white);
-            font-size: 1rem;
+            font-size: 0.95rem;
             cursor: pointer;
         }
-        #genBtn:disabled {
+        .artist-btn:disabled, #resetBtn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+        }
+        #resetBtn {
+            width: min(90vw, 480px);
+            margin-top: 8px;
+            display: none;
         }
         #statusMsg {
             margin-top: 12px;
@@ -114,7 +125,8 @@
                 <div class="overlay-text">Kunstwerk wird generiert</div>
             </div>
         </div>
-        <button id="genBtn" type="button">Generieren</button>
+        <div id="artistButtons" class="artist-buttons"></div>
+        <button id="resetBtn" type="button">Nochmal</button>
         <p id="statusMsg"></p>
     </div>
 
@@ -124,7 +136,8 @@
         const ctx = canvas.getContext('2d');
         const overlay = document.getElementById('overlay');
         const outputImage = document.getElementById('outputImage');
-        const genBtn = document.getElementById('genBtn');
+        const artistButtons = document.getElementById('artistButtons');
+        const resetBtn = document.getElementById('resetBtn');
         const statusMsg = document.getElementById('statusMsg');
 
         let drawing = false;
@@ -191,34 +204,64 @@
             if (!isCompleted) resizeCanvas();
         });
 
-        genBtn.addEventListener('click', async () => {
-            if (isCompleted) {
-                window.location.reload();
-                return;
-            }
-            await generateFromSketch();
+        resetBtn.addEventListener('click', () => {
+            window.location.reload();
         });
 
-        async function generateFromSketch() {
+        function setArtistButtonsDisabled(disabled) {
+            const buttons = artistButtons.querySelectorAll('button');
+            buttons.forEach((button) => {
+                button.disabled = disabled;
+            });
+        }
+
+        async function loadArtists() {
+            try {
+                const response = await fetch('/api/artists');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const data = await response.json();
+                const artists = Array.isArray(data.artists) ? data.artists.slice(0, 3) : [];
+                if (artists.length === 0) {
+                    throw new Error('Keine Künstler verfügbar.');
+                }
+
+                artistButtons.innerHTML = '';
+                artists.forEach((artist) => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'artist-btn';
+                    button.textContent = artist.name;
+                    button.addEventListener('click', () => {
+                        generateFromSketch(artist.name);
+                    });
+                    artistButtons.appendChild(button);
+                });
+            } catch (error) {
+                statusMsg.textContent = `Fehler: ${error.message}`;
+            }
+        }
+
+        async function generateFromSketch(artistName) {
             if (isGenerating) return;
 
             isGenerating = true;
             const sketchBase64 = canvas.toDataURL('image/png').split(',')[1];
             statusMsg.textContent = '';
             overlay.style.display = 'flex';
-            genBtn.disabled = true;
+            setArtistButtonsDisabled(true);
 
             try {
                 const response = await fetch('/api/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sketch: sketchBase64 })
+                    body: JSON.stringify({ sketch: sketchBase64, artistName })
                 });
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
                 const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data?.error || `HTTP ${response.status}`);
+                }
                 if (data.error) throw new Error(data.error);
                 if (!data.imageBase64) throw new Error('Keine Bilddaten erhalten.');
 
@@ -226,11 +269,11 @@
                 outputImage.style.display = 'block';
                 canvas.style.display = 'none';
                 isCompleted = true;
-                genBtn.textContent = 'Nochmal';
-                genBtn.disabled = false;
+                artistButtons.style.display = 'none';
+                resetBtn.style.display = 'block';
             } catch (error) {
                 statusMsg.textContent = `Fehler: ${error.message}`;
-                genBtn.disabled = false;
+                setArtistButtonsDisabled(false);
             } finally {
                 isGenerating = false;
                 overlay.style.display = 'none';
@@ -238,6 +281,7 @@
         }
 
         resizeCanvas();
+        loadArtists();
     </script>
 </body>
 </html>

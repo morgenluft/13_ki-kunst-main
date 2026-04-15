@@ -1,1 +1,3 @@
-Erstelle ein Bild wie von gogh
+Van Gogh|Erstelle ein Bild wie von gogh
+Picasso|Erstelle ein Bild im Stil von Pablo Picasso
+Warhol|Erstelle ein kontrastreiches Pop-Art-Bild mit kräftigen Farbflächen, klaren Konturen und plakativem Siebdruck-Look.
