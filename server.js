@@ -2,13 +2,26 @@ require('dotenv').config(); // Lädt die Variablen aus der .env Datei
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs/promises');
 const app = express();
+const PROMPT_FILE = path.join(__dirname, 'prompt.txt');
+const DEFAULT_PROMPT = 'Erstelle ein Bild wie von gogh';
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+async function getPromptFromFile() {
+    try {
+        const prompt = await fs.readFile(PROMPT_FILE, 'utf8');
+        return prompt.trim() || DEFAULT_PROMPT;
+    } catch {
+        return DEFAULT_PROMPT;
+    }
+}
+
 app.post('/api/generate', async (req, res) => {
-    const { prompt, sketch } = req.body; // Jetzt mit sketch-Daten
+    const { sketch } = req.body;
+    const prompt = await getPromptFromFile();
     const apiKey = process.env.GEMINI_API_KEY;
 
     try {
