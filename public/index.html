@@ -138,12 +138,10 @@
             color: var(--muted);
             letter-spacing: 0.01em;
         }
-        .artist-buttons {
+        #generateBtn {
             width: min(100%, 500px);
             margin: 0 auto;
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: var(--space-1);
+            display: block;
         }
         .result-tabs {
             width: min(100%, 500px);
@@ -195,7 +193,7 @@
             line-height: 1;
             flex-shrink: 0;
         }
-        .artist-btn, #resetBtn {
+        #generateBtn, #resetBtn {
             min-height: clamp(42px, 7vw, 52px);
             padding: 10px 8px;
             border: 2px solid var(--black);
@@ -207,16 +205,16 @@
             cursor: pointer;
             transition: background 120ms ease, color 120ms ease;
         }
-        .artist-btn:hover, #resetBtn:hover {
+        #generateBtn:hover, #resetBtn:hover {
             background: var(--white);
             color: var(--black);
         }
-        .artist-btn:disabled, #resetBtn:disabled {
+        #generateBtn:disabled, #resetBtn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
             pointer-events: none;
         }
-        .artist-btn:disabled:hover, #resetBtn:disabled:hover {
+        #generateBtn:disabled:hover, #resetBtn:disabled:hover {
             background: var(--black);
             color: var(--white);
         }
@@ -240,9 +238,6 @@
                 padding-left: 0;
                 padding-right: 0;
             }
-            .artist-buttons {
-                grid-template-columns: 1fr;
-            }
             .result-tab {
                 font-size: 0.95rem;
                 min-height: 44px;
@@ -254,7 +249,7 @@
 <body>
     <div class="card">
         <h1>Scribble-KI</h1>
-        <p class="subtitle">Verwandeln Sie Ihre Skizze in ein Kunstwerk</p>
+        <p class="subtitle">Verwandle deine Skizze in einen<br>Van Gogh, Picasso oder Warhol.</p>
         <div id="resultTabs" class="result-tabs"></div>
         <div class="canvas-container">
             <canvas id="sketchPad"></canvas>
@@ -303,7 +298,7 @@
                 <div class="overlay-text">Kunstwerk wird generiert</div>
             </div>
         </div>
-        <div id="artistButtons" class="artist-buttons"></div>
+        <button id="generateBtn" type="button" disabled>Kunstwerk generieren</button>
         <button id="resetBtn" type="button">Nochmal</button>
         <p id="statusMsg"></p>
     </div>
@@ -314,7 +309,7 @@
         const ctx = canvas.getContext('2d');
         const overlay = document.getElementById('overlay');
         const outputImage = document.getElementById('outputImage');
-        const artistButtons = document.getElementById('artistButtons');
+        const generateBtn = document.getElementById('generateBtn');
         const resultTabs = document.getElementById('resultTabs');
         const resetBtn = document.getElementById('resetBtn');
         const statusBanner = document.getElementById('statusBanner');
@@ -393,7 +388,7 @@
             }
             if (!hasSketch && strokeDistance >= DRAW_ACTIVATION_DISTANCE) {
                 hasSketch = true;
-                setArtistButtonsDisabled(false);
+                setGenerateButtonDisabled(false);
             }
             activePointerId = null;
             strokeDistance = 0;
@@ -415,11 +410,8 @@
             window.location.reload();
         });
 
-        function setArtistButtonsDisabled(disabled) {
-            const buttons = artistButtons.querySelectorAll('button');
-            buttons.forEach((button) => {
-                button.disabled = disabled;
-            });
+        function setGenerateButtonDisabled(disabled) {
+            generateBtn.disabled = disabled;
         }
 
         function renderTabs() {
@@ -549,38 +541,31 @@
                 }
                 artistsList = artists;
 
-                artistButtons.innerHTML = '';
-                artists.forEach((artist) => {
-                    const button = document.createElement('button');
-                    button.type = 'button';
-                    button.className = 'artist-btn';
-                    button.textContent = artist.name;
-                    button.disabled = !hasSketch;
-                    button.addEventListener('click', () => {
-                        if (!hasSketch) return;
-                        generateFromSketch(artist.name);
-                    });
-                    artistButtons.appendChild(button);
-                });
             } catch (error) {
                 statusMsg.textContent = `Fehler: ${error.message}`;
+                setGenerateButtonDisabled(true);
             }
         }
 
-        async function generateFromSketch(artistName) {
+        generateBtn.addEventListener('click', () => {
+            if (!hasSketch || isGenerating || artistsList.length === 0) return;
+            generateFromSketch();
+        });
+
+        async function generateFromSketch() {
             if (isGenerating) return;
 
             isGenerating = true;
             isCompleted = true;
-            selectedArtist = artistName;
+            selectedArtist = null;
             artistResults = {};
             firstGeminiErrorShown = false;
             const sketchBase64 = canvas.toDataURL('image/png').split(',')[1];
             statusMsg.textContent = '';
             hideStatusBanner();
             overlay.style.display = 'flex';
-            setArtistButtonsDisabled(true);
-            artistButtons.style.display = 'none';
+            setGenerateButtonDisabled(true);
+            generateBtn.style.display = 'none';
             resultTabs.style.display = 'none';
 
             artistsList.forEach((artist) => {
@@ -589,56 +574,43 @@
 
             try {
                 const generationController = new AbortController();
-                let stopOnFirstError = false;
+                let firstErrorMessage = null;
 
                 const generationTasks = artistsList.map(async (artist) => {
                     try {
                         const imageBase64 = await requestImageForArtist(artist.name, sketchBase64, generationController.signal);
-                        if (stopOnFirstError) return;
                         artistResults[artist.name] = { status: 'success', imageBase64 };
-                        if (artist.name === selectedArtist) {
+                        if (!selectedArtist) {
+                            selectedArtist = artist.name;
                             renderSelectedImage();
                         }
                     } catch (error) {
                         if (error?.name === 'AbortError') {
                             return;
                         }
-                        if (stopOnFirstError) {
-                            return;
-                        }
-                        stopOnFirstError = true;
-                        generationController.abort();
                         artistResults[artist.name] = { status: 'error', error: error.message };
                         const mappedMessage = mapUiErrorMessage(error.message);
-                        showFirstGeminiError(mappedMessage);
-                        statusMsg.textContent = `Fehler: ${mappedMessage}`;
-                        overlay.style.display = 'none';
-                        resultTabs.style.display = 'none';
-                        resetBtn.style.display = 'block';
-                    } finally {
-                        if (!stopOnFirstError) {
-                            renderTabs();
+                        if (!firstErrorMessage) {
+                            firstErrorMessage = mappedMessage;
                         }
+                    } finally {
+                        renderTabs();
                     }
                 });
 
                 await Promise.allSettled(generationTasks);
 
-                if (stopOnFirstError) {
-                    return;
-                }
-
-                const selectedResult = artistResults[selectedArtist];
-                if (selectedResult?.status === 'success') {
+                if (selectedArtist) {
                     renderSelectedImage();
                 } else {
                     overlay.style.display = 'none';
+                    resultTabs.style.display = 'none';
+                    resetBtn.style.display = 'block';
+                    const fallbackMessage = firstErrorMessage || 'Keine Bildgenerierung möglich';
+                    showStatusBanner(fallbackMessage);
+                    statusMsg.textContent = `Fehler: ${fallbackMessage}`;
                 }
 
-                const hasAnySuccess = Object.values(artistResults).some((entry) => entry.status === 'success');
-                if (!hasAnySuccess) {
-                    throw new Error('Keine Bildgenerierung möglich');
-                }
             } catch (error) {
                 const mappedMessage = mapUiErrorMessage(error.message);
                 showStatusBanner(mappedMessage);
