@@ -99,7 +99,7 @@
             border: 2px solid var(--black);
             background: var(--white);
             overflow: hidden;
-            touch-action: none;
+            touch-action: pan-y;
         }
         #sketchPad, #outputImage {
             width: 100%;
@@ -223,6 +223,39 @@
             margin: var(--space-1) auto 0 auto;
             display: none;
         }
+        #finalCta {
+            width: min(100%, 500px);
+            margin: var(--space-3) auto 0 auto;
+            padding-top: var(--space-2);
+            border-top: 1px solid var(--line);
+            display: none;
+            text-align: center;
+            line-height: 1.45;
+        }
+        .final-cta-headline {
+            margin: 0 0 10px 0;
+            font-size: clamp(1.1rem, 3.2vw, 1.32rem);
+            font-weight: 800;
+            letter-spacing: 0.01em;
+        }
+        .final-cta-link {
+            margin: 0;
+            color: var(--muted);
+            font-size: clamp(1rem, 3vw, 1.15rem);
+            line-height: 1.4;
+            letter-spacing: 0.01em;
+            font-weight: 400;
+        }
+        .final-cta-link + .final-cta-link { margin-top: 2px; }
+        .final-cta-link a {
+            color: inherit;
+            text-decoration: none;
+            border-bottom: 1px solid currentColor;
+            padding-bottom: 1px;
+        }
+        .final-cta-link a:hover {
+            opacity: 0.72;
+        }
         #statusMsg {
             margin-top: var(--space-2);
             min-height: 1.3em;
@@ -249,7 +282,7 @@
 <body>
     <div class="card">
         <h1>Scribble-KI</h1>
-        <p class="subtitle">Verwandle deine Skizze in einen<br>Van Gogh, Picasso oder Warhol.</p>
+        <p class="subtitle">Verwandeln Sie Ihre Skizze in einen<br>van Gogh, Picasso oder Warhol.</p>
         <div id="resultTabs" class="result-tabs"></div>
         <div class="canvas-container">
             <canvas id="sketchPad"></canvas>
@@ -300,6 +333,11 @@
         </div>
         <button id="generateBtn" type="button" disabled>Kunstwerk generieren</button>
         <button id="resetBtn" type="button">Nochmal</button>
+        <div id="finalCta" aria-label="Kontakt">
+            <p class="final-cta-headline">Spielerei oder Revolution?</p>
+            <p class="final-cta-link"><a href="mailto:hollo@focus-ki.de">hello@focus-ki.de</a></p>
+            <p class="final-cta-link"><a href="tel:+493075437231">030 754 372 31</a></p>
+        </div>
         <p id="statusMsg"></p>
     </div>
 
@@ -312,6 +350,7 @@
         const generateBtn = document.getElementById('generateBtn');
         const resultTabs = document.getElementById('resultTabs');
         const resetBtn = document.getElementById('resetBtn');
+        const finalCta = document.getElementById('finalCta');
         const statusBanner = document.getElementById('statusBanner');
         const statusBannerText = document.getElementById('statusBannerText');
         const statusMsg = document.getElementById('statusMsg');
@@ -460,6 +499,7 @@
             overlay.style.display = 'none';
             resultTabs.style.display = 'flex';
             resetBtn.style.display = 'block';
+            finalCta.style.display = 'block';
         }
 
         function mapUiErrorMessage(rawMessage) {
@@ -606,6 +646,7 @@
                     overlay.style.display = 'none';
                     resultTabs.style.display = 'none';
                     resetBtn.style.display = 'block';
+                    finalCta.style.display = 'block';
                     const fallbackMessage = firstErrorMessage || 'Keine Bildgenerierung möglich';
                     showStatusBanner(fallbackMessage);
                     statusMsg.textContent = `Fehler: ${fallbackMessage}`;
