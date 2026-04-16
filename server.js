@@ -5,13 +5,17 @@ const path = require('path');
 const fs = require('fs/promises');
 const app = express();
 const PROMPT_FILE = path.join(__dirname, 'prompt.txt');
+const GALLERY_DIR = path.join(__dirname, 'gallery-data');
+const GALLERY_IMAGES_DIR = path.join(__dirname, 'public', 'gallery-images');
+const GALLERY_INDEX_FILE = path.join(GALLERY_DIR, 'attempts.json');
+const MAX_GALLERY_ATTEMPTS = 200;
 const DEFAULT_ARTISTS = [
     { name: 'Vincent van Gogh', prompt: 'Erstelle ein Bild wie von gogh' },
     { name: 'Claude Monet', prompt: 'Erstelle ein Bild im Stil von Claude Monet' },
     { name: 'Pablo Picasso', prompt: 'Erstelle ein Bild im Stil von Pablo Picasso' }
 ];
 
-app.use(express.json());
+app.use(express.json({ limit: '80mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 async function getArtistsFromFile() {
@@ -72,6 +76,41 @@ function buildCandidateDetails(candidates) {
     }
 
     return detailParts.join(' | ');
+}
+
+async function ensureGalleryStorage() {
+    await fs.mkdir(GALLERY_DIR, { recursive: true });
+    await fs.mkdir(GALLERY_IMAGES_DIR, { recursive: true });
+    try {
+        await fs.access(GALLERY_INDEX_FILE);
+    } catch {
+        await fs.writeFile(GALLERY_INDEX_FILE, '[]', 'utf8');
+    }
+}
+
+async function loadGalleryAttempts() {
+    await ensureGalleryStorage();
+    try {
+        const raw = await fs.readFile(GALLERY_INDEX_FILE, 'utf8');
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+async function saveGalleryAttempts(attempts) {
+    await ensureGalleryStorage();
+    await fs.writeFile(GALLERY_INDEX_FILE, JSON.stringify(attempts, null, 2), 'utf8');
+}
+
+async function saveBase64Image(base64Data, fileName) {
+    const normalized = String(base64Data || '').trim();
+    if (!normalized) return null;
+    const cleaned = normalized.includes(',') ? normalized.split(',').pop() : normalized;
+    const filePath = path.join(GALLERY_IMAGES_DIR, fileName);
+    await fs.writeFile(filePath, Buffer.from(cleaned, 'base64'));
+    return `/gallery-images/${fileName}`;
 }
 
 app.post('/api/generate', async (req, res) => {
@@ -142,6 +181,56 @@ app.post('/api/generate', async (req, res) => {
     } catch (error) {
         console.error("Fehler im Backend:", error);
         res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/gallery', async (_req, res) => {
+    const attempts = await loadGalleryAttempts();
+    res.json({ attempts });
+});
+
+app.post('/api/gallery/attempt', async (req, res) => {
+    const { sketch, results } = req.body || {};
+    if (!sketch || !Array.isArray(results)) {
+        return res.status(400).json({ error: 'Ungültige Gallery-Daten.' });
+    }
+
+    try {
+        const now = Date.now();
+        const entryId = `${now}-${Math.random().toString(36).slice(2, 8)}`;
+        const sketchUrl = await saveBase64Image(sketch, `${entryId}-sketch.png`);
+
+        const items = [];
+        for (let idx = 0; idx < results.length; idx += 1) {
+            const result = results[idx] || {};
+            const artistName = String(result.artistName || `Bild ${idx + 1}`);
+            const status = result.status === 'success' ? 'success' : 'error';
+            let imageUrl = null;
+            if (status === 'success' && result.imageBase64) {
+                imageUrl = await saveBase64Image(result.imageBase64, `${entryId}-result-${idx + 1}.png`);
+            }
+            items.push({
+                artistName,
+                status,
+                imageUrl,
+                error: result.error ? String(result.error) : null
+            });
+        }
+
+        const newAttempt = {
+            id: entryId,
+            createdAt: new Date(now).toISOString(),
+            sketchUrl,
+            items
+        };
+
+        const existing = await loadGalleryAttempts();
+        const updated = [newAttempt, ...existing].slice(0, MAX_GALLERY_ATTEMPTS);
+        await saveGalleryAttempts(updated);
+        res.status(201).json({ ok: true, id: entryId });
+    } catch (error) {
+        console.error('Fehler beim Speichern der Gallery:', error);
+        res.status(500).json({ error: 'Gallery konnte nicht gespeichert werden.' });
     }
 });
 

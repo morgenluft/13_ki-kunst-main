@@ -568,6 +568,34 @@
             return data.imageBase64;
         }
 
+        async function saveAttemptToGallery(sketchBase64) {
+            try {
+                const results = artistsList.map((artist) => {
+                    const result = artistResults[artist.name] || { status: 'error' };
+                    return {
+                        artistName: artist.name,
+                        status: result.status,
+                        imageBase64: result.status === 'success' ? result.imageBase64 : null,
+                        error: result.status === 'error' ? (result.error || null) : null
+                    };
+                });
+
+                const saveResponse = await fetch('/api/gallery/attempt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sketch: sketchBase64,
+                        results
+                    })
+                });
+                if (!saveResponse.ok) {
+                    throw new Error(`Gallery Save HTTP ${saveResponse.status}`);
+                }
+            } catch (error) {
+                console.error('Gallery konnte nicht gespeichert werden:', error);
+            }
+        }
+
         async function loadArtists() {
             try {
                 const response = await fetch('/api/artists');
@@ -639,6 +667,7 @@
                 });
 
                 await Promise.allSettled(generationTasks);
+                await saveAttemptToGallery(sketchBase64);
 
                 if (selectedArtist) {
                     renderSelectedImage();

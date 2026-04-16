@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scribble-KI Gallery</title>
+    <style>
+        :root {
+            --black: #000;
+            --white: #fff;
+            --muted: #4a4a4a;
+            --line: #111;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Roboto", "Segoe UI", Arial, sans-serif;
+            background: var(--white);
+            color: var(--black);
+            padding: 20px;
+        }
+        .page {
+            width: min(1200px, 100%);
+            margin: 0 auto;
+        }
+        h1 {
+            margin: 0 0 8px 0;
+            font-size: clamp(1.6rem, 3.4vw, 2.1rem);
+        }
+        .subtitle {
+            margin: 0 0 20px 0;
+            color: var(--muted);
+        }
+        .attempt-list {
+            display: grid;
+            gap: 16px;
+        }
+        .attempt {
+            border: 1px solid var(--line);
+            padding: 12px;
+        }
+        .attempt-meta {
+            font-size: 0.95rem;
+            margin: 0 0 10px 0;
+            color: var(--muted);
+        }
+        .attempt-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .tile {
+            border: 1px solid var(--line);
+            padding: 6px;
+            display: grid;
+            gap: 6px;
+            align-content: start;
+            background: #fafafa;
+        }
+        .tile-label {
+            margin: 0;
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+        .tile img {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            object-fit: cover;
+            display: block;
+            border: 1px solid #ccc;
+            background: #f1f1f1;
+        }
+        .tile-error {
+            margin: 0;
+            min-height: 2.6em;
+            font-size: 0.82rem;
+            color: #b00020;
+        }
+        .empty {
+            border: 1px dashed var(--line);
+            padding: 20px;
+            text-align: center;
+            color: var(--muted);
+        }
+        @media (max-width: 900px) {
+            .attempt-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+        @media (max-width: 520px) {
+            body { padding: 14px; }
+            .attempt-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="page">
+        <h1>Gallery</h1>
+        <p class="subtitle">Neueste Versuche stehen oben. Jede Zeile zeigt 1 Skizze + 3 generierte Bilder.</p>
+        <section id="galleryRoot" class="attempt-list"></section>
+    </main>
+
+    <script>
+        const galleryRoot = document.getElementById('galleryRoot');
+        let latestId = '__init__';
+
+        function formatDate(isoDate) {
+            const date = new Date(isoDate);
+            return date.toLocaleString('de-DE');
+        }
+
+        function createTile(label, imageUrl, errorText) {
+            const tile = document.createElement('article');
+            tile.className = 'tile';
+
+            const title = document.createElement('p');
+            title.className = 'tile-label';
+            title.textContent = label;
+            tile.appendChild(title);
+
+            const image = document.createElement('img');
+            image.alt = label;
+            if (imageUrl) {
+                image.src = imageUrl;
+            }
+            tile.appendChild(image);
+
+            const error = document.createElement('p');
+            error.className = 'tile-error';
+            error.textContent = errorText || '';
+            tile.appendChild(error);
+
+            return tile;
+        }
+
+        function renderAttempts(attempts) {
+            galleryRoot.innerHTML = '';
+            if (!attempts.length) {
+                const empty = document.createElement('div');
+                empty.className = 'empty';
+                empty.textContent = 'Noch keine Versuche gespeichert.';
+                galleryRoot.appendChild(empty);
+                return;
+            }
+
+            attempts.forEach((attempt) => {
+                const wrapper = document.createElement('article');
+                wrapper.className = 'attempt';
+
+                const meta = document.createElement('p');
+                meta.className = 'attempt-meta';
+                meta.textContent = `Durchgang: ${formatDate(attempt.createdAt)}`;
+                wrapper.appendChild(meta);
+
+                const grid = document.createElement('div');
+                grid.className = 'attempt-grid';
+                grid.appendChild(createTile('Skizze', attempt.sketchUrl, ''));
+
+                const items = Array.isArray(attempt.items) ? attempt.items.slice(0, 3) : [];
+                while (items.length < 3) {
+                    items.push({ artistName: 'Kunstwerk', status: 'error', imageUrl: null, error: '' });
+                }
+
+                items.forEach((item) => {
+                    const errorText = item.status === 'error'
+                        ? (item.error || 'Keine Bildgenerierung möglich')
+                        : '';
+                    grid.appendChild(createTile(item.artistName || 'Kunstwerk', item.imageUrl, errorText));
+                });
+
+                wrapper.appendChild(grid);
+                galleryRoot.appendChild(wrapper);
+            });
+        }
+
+        async function loadGallery() {
+            try {
+                const response = await fetch('/api/gallery');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                const attempts = Array.isArray(data.attempts) ? data.attempts : [];
+                const currentLatestId = attempts[0]?.id || null;
+                if (currentLatestId !== latestId) {
+                    latestId = currentLatestId;
+                    renderAttempts(attempts);
+                }
+            } catch (error) {
+                console.error('Gallery konnte nicht geladen werden:', error);
+            }
+        }
+
+        loadGallery();
+        setInterval(loadGallery, 5000);
+    </script>
+</body>
+</html>

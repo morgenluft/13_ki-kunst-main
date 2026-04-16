@@ -1,0 +1,27 @@
+[
+  {
+    "id": "1776323553818-3tkhgk",
+    "createdAt": "2026-04-16T07:12:33.818Z",
+    "sketchUrl": "/gallery-images/1776323553818-3tkhgk-sketch.png",
+    "items": [
+      {
+        "artistName": "Van Gogh",
+        "status": "success",
+        "imageUrl": "/gallery-images/1776323553818-3tkhgk-result-1.png",
+        "error": null
+      },
+      {
+        "artistName": "Picasso",
+        "status": "success",
+        "imageUrl": "/gallery-images/1776323553818-3tkhgk-result-2.png",
+        "error": null
+      },
+      {
+        "artistName": "Warhol",
+        "status": "success",
+        "imageUrl": "/gallery-images/1776323553818-3tkhgk-result-3.png",
+        "error": null
+      }
+    ]
+  }
+]
